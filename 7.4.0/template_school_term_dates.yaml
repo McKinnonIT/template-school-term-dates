@@ -1,0 +1,237 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    - uuid: 9201d90bcddd480387bbb6ba15943df5
+      template: 'School Term Dates'
+      name: 'School Term Dates'
+      description: 'Provides current school term info and progress derived from predefined term date ranges.'
+      groups:
+        - name: Templates
+      items:
+        - uuid: 758697db222b4c8c95062c0d1d68ffe6
+          name: 'School Term: Get data'
+          type: SCRIPT
+          key: school.term.get
+          value_type: TEXT
+          delay: 1h
+          history: 1h
+          tags:
+            - tag: component
+              value: raw
+          params: |
+            try {
+                var formatDate = function(date) {
+                    var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                    var months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                    var dayOfWeek = days[date.getDay()];
+                    var dayOfMonth = date.getDate();
+                    var month = months[date.getMonth()];
+                    var year = date.getFullYear();
+                    return dayOfWeek + ', ' + dayOfMonth + ' ' + month + ' ' + year;
+                };
+
+                var termDates = [
+                    // 2025
+                    { name: "Term 1 (2025)", start: "2025-01-28", end: "2025-04-04" },
+                    { name: "Term 2 (2025)", start: "2025-04-22", end: "2025-07-04" },
+                    { name: "Term 3 (2025)", start: "2025-07-21", end: "2025-09-19" },
+                    { name: "Term 4 (2025)", start: "2025-10-06", end: "2025-12-19" },
+                    // 2026
+                    { name: "Term 1 (2026)", start: "2026-01-27", end: "2026-04-02" },
+                    { name: "Term 2 (2026)", start: "2026-04-20", end: "2026-06-26" },
+                    { name: "Term 3 (2026)", start: "2026-07-13", end: "2026-09-18" },
+                    { name: "Term 4 (2026)", start: "2026-10-05", end: "2026-12-18" },
+                    // 2027
+                    { name: "Term 1 (2027)", start: "2027-01-27", end: "2027-03-25" },
+                    { name: "Term 2 (2027)", start: "2027-04-12", end: "2027-06-25" },
+                    { name: "Term 3 (2027)", start: "2027-07-12", end: "2027-09-17" },
+                    { name: "Term 4 (2027)", start: "2027-10-04", end: "2027-12-17" },
+                    // 2028
+                    { name: "Term 1 (2028)", start: "2028-01-27", end: "2028-03-31" },
+                    { name: "Term 2 (2028)", start: "2028-04-18", end: "2028-06-30" },
+                    { name: "Term 3 (2028)", start: "2028-07-17", end: "2028-09-22" },
+                    { name: "Term 4 (2028)", start: "2028-10-09", end: "2028-12-21" },
+                    // 2029
+                    { name: "Term 1 (2029)", start: "2029-01-29", end: "2029-03-29" },
+                    { name: "Term 2 (2029)", start: "2029-04-16", end: "2029-06-29" },
+                    { name: "Term 3 (2029)", start: "2029-07-16", end: "2029-09-21" },
+                    { name: "Term 4 (2029)", start: "2029-10-08", end: "2029-12-21" },
+                    // 2030
+                    { name: "Term 1 (2030)", start: "2030-01-29", end: "2030-04-05" },
+                    { name: "Term 2 (2030)", start: "2030-04-23", end: "2030-06-28" },
+                    { name: "Term 3 (2030)", start: "2030-07-15", end: "2030-09-20" },
+                    { name: "Term 4 (2030)", start: "2030-10-07", end: "2030-12-20" }
+                ];
+
+                var now = new Date();
+                var currentTerm = null;
+
+                for (var i = 0; i < termDates.length; i++) {
+                    var term = termDates[i];
+                    var startDate = new Date(term.start + 'T12:00:00');
+                    var endDate = new Date(term.end + 'T12:00:00');
+
+                    if (now >= startDate && now <= endDate) {
+                        currentTerm = {
+                            name: term.name,
+                            startDate: startDate,
+                            endDate: endDate
+                        };
+                        break;
+                    }
+                }
+
+                if (currentTerm === null) {
+                    var holidayPayload = {
+                        term_name: "Holiday",
+                        current_week: 0,
+                        remaining_weeks: 0,
+                        total_weeks: 0,
+                        last_day_of_term: "N/A",
+                        progress_string: "N/A",
+                        progress_percent: 0
+                    };
+                    return JSON.stringify(holidayPayload);
+                }
+
+                var MS_IN_A_DAY = 1000 * 60 * 60 * 24;
+                var DAYS_IN_A_WEEK = 7;
+
+                var diffRemainingMs = currentTerm.endDate.getTime() - now.getTime();
+                diffRemainingMs = diffRemainingMs < 0 ? 0 : diffRemainingMs;
+                var remainingWeeks = Math.floor((diffRemainingMs / MS_IN_A_DAY) / DAYS_IN_A_WEEK);
+
+                var diffTotalMs = currentTerm.endDate.getTime() - currentTerm.startDate.getTime();
+                var totalWeeks = Math.ceil((diffTotalMs / MS_IN_A_DAY) / DAYS_IN_A_WEEK);
+
+                var diffCurrentMs = now.getTime() - currentTerm.startDate.getTime();
+                var currentWeek = Math.ceil((diffCurrentMs / MS_IN_A_DAY) / DAYS_IN_A_WEEK);
+                currentWeek = currentWeek < 1 ? 1 : currentWeek;
+
+                var lastDayFormatted = formatDate(currentTerm.endDate);
+                var progressString = currentWeek + " of " + totalWeeks;
+                var progressPercent = Math.min(100, Math.max(0, Math.round((currentWeek / totalWeeks) * 100)));
+
+                var payload = {
+                    term_name: currentTerm.name,
+                    current_week: currentWeek,
+                    remaining_weeks: remainingWeeks,
+                    total_weeks: totalWeeks,
+                    last_day_of_term: lastDayFormatted,
+                    progress_string: progressString,
+                    progress_percent: progressPercent
+                };
+
+                return JSON.stringify(payload);
+
+            } catch (error) {
+                Zabbix.log(4, '[School Term] Script failed with error: ' + error);
+                return null;
+            }
+        - uuid: 02f60b3058c64f5eb9bd36dafe01f05d
+          name: 'School Term: Current week'
+          type: DEPENDENT
+          key: school.term.week.current
+          value_type: FLOAT
+          units: weeks
+          tags:
+            - tag: component
+              value: business
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.current_week
+          master_item:
+            key: school.term.get
+        - uuid: e4bae640ea3542c4b2bcc0e9550f2f58
+          name: 'School Term: End date'
+          type: DEPENDENT
+          key: school.term.end.date
+          value_type: TEXT
+          tags:
+            - tag: component
+              value: business
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.last_day_of_term
+          master_item:
+            key: school.term.get
+        - uuid: 23f95934af474cbcb9017037ebe2f2a2
+          name: 'School Term: Name'
+          type: DEPENDENT
+          key: school.term.name
+          value_type: TEXT
+          tags:
+            - tag: component
+              value: business
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.term_name
+          master_item:
+            key: school.term.get
+        - uuid: 61d97609382548f1aedb380610f0ab69
+          name: 'School Term: Progress (text)'
+          type: DEPENDENT
+          key: school.term.progress.text
+          value_type: TEXT
+          tags:
+            - tag: component
+              value: business
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.progress_string
+          master_item:
+            key: school.term.get
+        - uuid: 6b3a1b47e3b64a60a2c3dc51a6c5f1b1
+          name: 'School Term: Progress (%)'
+          type: DEPENDENT
+          key: school.term.progress.percent
+          value_type: FLOAT
+          units: '%'
+          tags:
+            - tag: component
+              value: business
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.progress_percent
+          master_item:
+            key: school.term.get
+        - uuid: 47a83c8242b644d19fbae6559a017c13
+          name: 'School Term: Remaining weeks'
+          type: DEPENDENT
+          key: school.term.week.remaining
+          value_type: FLOAT
+          units: weeks
+          tags:
+            - tag: component
+              value: business
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.remaining_weeks
+          master_item:
+            key: school.term.get
+        - uuid: c32f14e8ef93499f873a3bab70433ac5
+          name: 'School Term: Total weeks'
+          type: DEPENDENT
+          key: school.term.week.total
+          value_type: FLOAT
+          units: weeks
+          tags:
+            - tag: component
+              value: business
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.total_weeks
+          master_item:
+            key: school.term.get
+
+
