@@ -26,10 +26,10 @@ zabbix_export:
                 var formatDate = function(date) {
                     var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                     var months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-                    var dayOfWeek = days[date.getDay()];
-                    var dayOfMonth = date.getDate();
-                    var month = months[date.getMonth()];
-                    var year = date.getFullYear();
+                    var dayOfWeek = days[date.getUTCDay()];
+                    var dayOfMonth = date.getUTCDate();
+                    var month = months[date.getUTCMonth()];
+                    var year = date.getUTCFullYear();
                     return dayOfWeek + ', ' + dayOfMonth + ' ' + month + ' ' + year;
                 };
 
@@ -67,14 +67,19 @@ zabbix_export:
                 ];
 
                 var now = new Date();
+                var today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
                 var currentTerm = null;
 
                 for (var i = 0; i < termDates.length; i++) {
                     var term = termDates[i];
-                    var startDate = new Date(term.start + 'T12:00:00');
-                    var endDate = new Date(term.end + 'T12:00:00');
+                    var startDate = new Date(term.start); // YYYY-MM-DD is parsed as UTC midnight
+                    var endDate = new Date(term.end);
 
-                    if (now >= startDate && now <= endDate) {
+                    // Create a date for the day AFTER the term ends for a clean comparison
+                    var termEndDateForComparison = new Date(endDate);
+                    termEndDateForComparison.setUTCDate(termEndDateForComparison.getUTCDate() + 1);
+
+                    if (today >= startDate && today < termEndDateForComparison) {
                         currentTerm = {
                             name: term.name,
                             startDate: startDate,
@@ -100,16 +105,16 @@ zabbix_export:
                 var MS_IN_A_DAY = 1000 * 60 * 60 * 24;
                 var DAYS_IN_A_WEEK = 7;
 
-                var diffRemainingMs = currentTerm.endDate.getTime() - now.getTime();
+                var diffRemainingMs = currentTerm.endDate.getTime() - today.getTime();
                 diffRemainingMs = diffRemainingMs < 0 ? 0 : diffRemainingMs;
                 var remainingWeeks = Math.floor((diffRemainingMs / MS_IN_A_DAY) / DAYS_IN_A_WEEK);
 
                 var diffTotalMs = currentTerm.endDate.getTime() - currentTerm.startDate.getTime();
-                var totalWeeks = Math.ceil((diffTotalMs / MS_IN_A_DAY) / DAYS_IN_A_WEEK);
+                // Add 1 day to total duration to include the start and end days
+                var totalWeeks = Math.ceil(((diffTotalMs / MS_IN_A_DAY) + 1) / DAYS_IN_A_WEEK);
 
-                var diffCurrentMs = now.getTime() - currentTerm.startDate.getTime();
-                var currentWeek = Math.ceil((diffCurrentMs / MS_IN_A_DAY) / DAYS_IN_A_WEEK);
-                currentWeek = currentWeek < 1 ? 1 : currentWeek;
+                var diffCurrentMs = today.getTime() - currentTerm.startDate.getTime();
+                var currentWeek = Math.floor((diffCurrentMs / MS_IN_A_DAY) / DAYS_IN_A_WEEK) + 1;
 
                 var lastDayFormatted = formatDate(currentTerm.endDate);
                 var progressString = currentWeek + " of " + totalWeeks;
